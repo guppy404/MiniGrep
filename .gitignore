@@ -1,0 +1,4 @@
+minigrep
+*.o
+build/
+.vscode/
