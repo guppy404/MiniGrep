@@ -6,7 +6,7 @@ ENGINE_SRC := src/parser.cpp src/nfa.cpp
 CLI_SRC := src/main.cpp
 TEST_SRC := tests/test_regex.cpp
 
-.PHONY: all test sanitize clean run
+.PHONY: all test sanitize clean run benchmark bench
 
 all: minigrep
 
@@ -19,6 +19,7 @@ test_regex: $(TEST_SRC) $(ENGINE_SRC) src/parser.hpp src/nfa.hpp
 test: minigrep test_regex
 	./test_regex
 	bash tests/test_cli.sh
+	python3 tests/test_differential.py
 
 sanitize:
 	$(CXX) $(CXXFLAGS) -g -O1 -fno-omit-frame-pointer \
@@ -30,4 +31,11 @@ run: minigrep
 	./minigrep -n 'error|warning' sample.txt
 
 clean:
-	rm -f minigrep test_regex test_regex_san
+	rm -f minigrep test_regex test_regex_san benchmark
+
+benchmark: tests/benchmark.cpp $(ENGINE_SRC)
+	$(CXX) $(CXXFLAGS) -O2 $(INCLUDES) \
+	    tests/benchmark.cpp $(ENGINE_SRC) -o benchmark
+
+bench: benchmark
+	./benchmark
