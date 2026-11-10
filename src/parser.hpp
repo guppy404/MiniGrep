@@ -9,6 +9,8 @@ enum class TokenType {
     Concat,
     Alt,
     Star,
+    Plus,
+    Question,
     LeftParen,
     RightParen
 };

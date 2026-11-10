@@ -1,99 +1,104 @@
+#include <fstream>
 #include <iostream>
-#include <cassert>
 #include <stdexcept>
+#include <string>
+#include <vector>
+
 #include "parser.hpp"
+#include "nfa.hpp"
 
-void printPostfix(const std::vector<Token>& tokens) {
-    for (const Token& token : tokens) {
-        switch (token.type) {
-            case TokenType::Literal:
-                std::cout << token.value;
-                break;
-            case TokenType::Wildcard:
-                std::cout << '.';
-                break;
-            case TokenType::Concat:
-                std::cout << '@';
-                break;
-            case TokenType::Alt:
-                std::cout << '|';
-                break;
-            case TokenType::Star:
-                std::cout << '*';
-                break;
-            default:
-                break;
-        }
-    }
-    std::cout << '\n';
+NFA compilePattern(const std::string& pattern) {
+    auto tokens = tokenize(pattern);
+    validatePattern(tokens);
+
+    auto explicitTokens = insertConcatenation(tokens);
+    auto postfix = toPostfix(explicitTokens);
+
+    return compileNFA(postfix);
 }
 
-void testValidation() {
-    const std::vector<std::string> valid = {
-        "",
-        "a",
-        "ab",
-        "a|b",
-        "(ab)*",
-        "a(b|c)*d",
-        "a.b",
-        "((a))"
-    };
+int main(int argc, char* argv[]) {
+    bool showLineNumbers = false;
+    int argIndex = 1;
 
-    const std::vector<std::string> invalid = {
-        "*a",
-        "a**",
-        "a|",
-        "|a",
-        "a||b",
-        "()",
-        "(a|)",
-        "(ab",
-        "ab)",
-        "a(*b)"
-    };
-
-    for (const auto& pattern : valid) {
-        validatePattern(tokenize(pattern));
+    // Optional -n flag
+    if (argIndex < argc &&
+        std::string(argv[argIndex]) == "-n") {
+        showLineNumbers = true;
+        ++argIndex;
     }
 
-    for (const auto& pattern : invalid) {
-        bool rejected = false;
+    // Require a pattern and at least one file
+    if (argc - argIndex < 2) {
+        std::cerr
+            << "Usage: minigrep [-n] PATTERN FILE [FILE...]\n";
+        return 2;
+    }
 
-        try {
-            validatePattern(tokenize(pattern));
-        } catch (const std::invalid_argument&) {
-            rejected = true;
+    std::string pattern = argv[argIndex++];
+    std::vector<std::string> filenames;
+
+    for (int i = argIndex; i < argc; ++i) {
+        filenames.emplace_back(argv[i]);
+    }
+
+    NFA nfa;
+
+    try {
+        nfa = compilePattern(pattern);
+    } catch (const std::invalid_argument& e) {
+        std::cerr << "minigrep: invalid pattern: "
+                  << e.what() << '\n';
+        return 2;
+    }
+
+    bool anyMatch = false;
+    bool fileError = false;
+    bool multipleFiles = filenames.size() > 1;
+
+    for (const std::string& filename : filenames) {
+        std::ifstream file(filename);
+
+        if (!file) {
+            std::cerr << "minigrep: cannot open "
+                      << filename << '\n';
+            fileError = true;
+            continue;
         }
 
-        assert(rejected && "Invalid pattern was accepted");
+        std::string line;
+        std::size_t lineNumber = 0;
+
+        while (std::getline(file, line)) {
+            ++lineNumber;
+
+            if (!search(nfa, line)) {
+                continue;
+            }
+
+            anyMatch = true;
+
+            if (multipleFiles) {
+                std::cout << filename << ':';
+            }
+
+            if (showLineNumbers) {
+                std::cout << lineNumber << ':';
+            }
+
+            std::cout << line << '\n';
+        }
+
+        if (file.bad()) {
+            std::cerr << "minigrep: read error: "
+                      << filename << '\n';
+            fileError = true;
+        }
     }
-}
 
-int main() {
-    std::cout << "Minigrep - custom regex engine\n";
-
-    std::vector<std::string> patterns = {
-        "ab",
-        "a|b",
-        "a*",
-        "a(b|c)",
-        "(ab)*",
-        "a|bc*",
-        "(a|b)*c",
-        "a(b|c)*d"
-    };
-
-    for (const auto& pattern : patterns) {
-        auto tokens = tokenize(pattern);
-        auto explicitTokens = insertConcatenation(tokens);
-        auto postfix = toPostfix(explicitTokens);
-
-        std::cout << pattern << " -> ";
-        printPostfix(postfix);
+    if (fileError) {
+        return 2;
     }
 
-    testValidation();
-
-    return 0;
+    return anyMatch ? 0 : 1;
 }

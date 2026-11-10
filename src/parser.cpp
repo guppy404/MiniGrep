@@ -22,6 +22,12 @@ std::vector<Token> tokenize(const std::string& pattern) {
             case '.':
                 tokens.push_back({TokenType::Wildcard});
                 break;
+            case '+':
+                tokens.push_back({TokenType::Plus});
+                break;
+            case '?':
+                tokens.push_back({TokenType::Question});
+                break;
             default:
                 tokens.push_back({TokenType::Literal, c});
                 break;
@@ -37,6 +43,8 @@ bool canEndExpression(TokenType type) {
         case TokenType::Wildcard:
         case TokenType::RightParen:
         case TokenType::Star:
+        case TokenType::Plus:
+        case TokenType::Question:
             return true;
         default:
             return false;
@@ -98,6 +106,8 @@ std::vector<Token> toPostfix(const std::vector<Token>& tokens) {
                 break;
 
             case TokenType::Star:
+            case TokenType::Plus:
+            case TokenType::Question:
                 output.push_back(token);
                 break;
 
@@ -182,13 +192,30 @@ void validatePattern(const std::vector<Token>& tokens) {
                 break;
 
             case TokenType::Star:
+            case TokenType::Plus:
+            case TokenType::Question: {
+
                 if (expectOperand) {
-                    throw std::invalid_argument("Nothing to repeat");
+                    throw std::invalid_argument(
+                        "Quantifier has nothing to repeat"
+                    );
                 }
-                if (i > 0 && tokens[i - 1].type == TokenType::Star) {
-                    throw std::invalid_argument("Repeated star operator");
+
+                if (i > 0) {
+                    TokenType previous = tokens[i - 1].type;
+
+                    if (previous == TokenType::Star ||
+                        previous == TokenType::Plus ||
+                        previous == TokenType::Question) {
+
+                        throw std::invalid_argument(
+                            "Consecutive quantifiers are not supported"
+                        );
+                    }
                 }
+
                 break;
+            }
 
             case TokenType::Alt:
                 if (expectOperand) {
@@ -209,7 +236,7 @@ void validatePattern(const std::vector<Token>& tokens) {
             "Unmatched ("
         );
     }
-    // TODO: Check incomplete final expression.
+
     if (expectOperand) {
         throw std::invalid_argument(
             "Incomplete final expression"

@@ -1,0 +1,6 @@
+Everything is working
+An error occurred
+Connection successful
+A warning was generated
+No issues detected
+Another error in the system
