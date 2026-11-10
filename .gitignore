@@ -1,4 +1,6 @@
 minigrep
+test_regex
+test_regex_san
 *.o
 build/
 .vscode/
